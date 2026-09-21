@@ -7,16 +7,17 @@ import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
+
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
+
 
 class CameraManager(
     private val context: Context
@@ -33,21 +34,27 @@ class CameraManager(
     private var lastLogTime = 0L
 
     private var lastFrameSentTime = 0L
-    
-    private val analysisExecutor = Executors.newSingleThreadExecutor()
 
+    private val analysisExecutor =
+        Executors.newSingleThreadExecutor()
+
+
+    // =========================================================
+    // START CAMERA - BACKGROUND ANALYSIS ONLY
+    // =========================================================
 
     fun startCamera(
-        lifecycleOwner: LifecycleOwner,
-        previewView: PreviewView
+        lifecycleOwner: LifecycleOwner
     ) {
 
         if (isRunning) {
             return
         }
 
+
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(context)
+
 
         cameraProviderFuture.addListener({
 
@@ -57,14 +64,9 @@ class CameraManager(
             cameraProvider = provider
 
 
-            val preview =
-                Preview.Builder()
-                    .build()
-
-            preview.setSurfaceProvider(
-                previewView.surfaceProvider
-            )
-
+            // =================================================
+            // IMAGE ANALYSIS
+            // =================================================
 
             imageAnalysis =
                 ImageAnalysis.Builder()
@@ -75,11 +77,16 @@ class CameraManager(
 
 
             imageAnalysis?.setAnalyzer(
-    analysisExecutor
-) { image ->
-    processFrame(image)
-}
+                analysisExecutor
+            ) { image ->
 
+                processFrame(image)
+            }
+
+
+            // =================================================
+            // CAMERA
+            // =================================================
 
             val cameraSelector =
                 CameraSelector.DEFAULT_BACK_CAMERA
@@ -89,18 +96,31 @@ class CameraManager(
 
                 provider.unbindAll()
 
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * We bind ONLY ImageAnalysis.
+                 *
+                 * There is NO Preview use case.
+                 * Therefore the camera works in the background
+                 * without showing a camera preview on screen.
+                 */
+
                 provider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
-                    preview,
                     imageAnalysis
                 )
 
+
                 isRunning = true
 
+
                 println(
-                    "CAMERA MANAGER >>> CAMERA STARTED"
+                    "CAMERA MANAGER >>> BACKGROUND CAMERA STARTED"
                 )
+
 
             } catch (e: Exception) {
 
@@ -113,23 +133,32 @@ class CameraManager(
     }
 
 
+    // =========================================================
+    // PROCESS CAMERA FRAME
+    // =========================================================
+
     private fun processFrame(
         image: ImageProxy
     ) {
 
         frameCount++
 
+
         val currentTime =
             System.currentTimeMillis()
 
 
-        /*
-         * Log camera status once every second.
-         */
+        // =====================================================
+        // CAMERA STATUS LOG
+        // =====================================================
 
-        if (currentTime - lastLogTime >= 1000) {
+        if (
+            currentTime - lastLogTime >= 1000
+        ) {
 
-            lastLogTime = currentTime
+            lastLogTime =
+                currentTime
+
 
             println(
                 "CAMERA >>> " +
@@ -139,28 +168,37 @@ class CameraManager(
         }
 
 
-        /*
-         * Send approximately 5 frames per second.
-         */
+        // =====================================================
+        // SEND APPROXIMATELY 5 FRAMES PER SECOND
+        // =====================================================
 
-        if (currentTime - lastFrameSentTime >= 200) {
+        if (
+            currentTime - lastFrameSentTime >= 200
+        ) {
 
-            lastFrameSentTime = currentTime
+            lastFrameSentTime =
+                currentTime
+
 
             try {
 
-                /*
-                 * Convert CameraX YUV frame
-                 * into JPEG bytes.
-                 */
+                // =================================================
+                // CONVERT YUV → JPEG
+                // =================================================
 
                 val jpegBytes =
                     imageProxyToJpeg(image)
 
 
+                // =================================================
+                // CREATE CAMERA FRAME
+                // =================================================
+
                 val frame =
                     CameraFrame(
-                        imageData = jpegBytes,
+
+                        imageData =
+                            jpegBytes,
 
                         timestamp =
                             image.imageInfo.timestamp,
@@ -176,12 +214,14 @@ class CameraManager(
                     )
 
 
-                /*
-                 * Send the complete frame
-                 * through our camera interface.
-                 */
+                // =================================================
+                // SEND FRAME TO CAMERA INTERFACE
+                // =================================================
 
-                CameraInterface.onFrame(frame)
+                CameraInterface.onFrame(
+                    frame
+                )
+
 
             } catch (e: Exception) {
 
@@ -193,29 +233,31 @@ class CameraManager(
         }
 
 
-        /*
-         * VERY IMPORTANT:
-         * ImageProxy must always be closed.
-         */
+        // =====================================================
+        // VERY IMPORTANT
+        // ImageProxy MUST always be closed
+        // =====================================================
 
         image.close()
     }
 
 
+    // =========================================================
+    // YUV → JPEG
+    // =========================================================
+
     private fun imageProxyToJpeg(
         image: ImageProxy
     ): ByteArray {
 
-        /*
-         * CameraX ImageAnalysis normally
-         * provides YUV_420_888.
-         */
 
         val yBuffer =
             image.planes[0].buffer
 
+
         val uBuffer =
             image.planes[1].buffer
+
 
         val vBuffer =
             image.planes[2].buffer
@@ -224,8 +266,10 @@ class CameraManager(
         val ySize =
             yBuffer.remaining()
 
+
         val uSize =
             uBuffer.remaining()
+
 
         val vSize =
             vBuffer.remaining()
@@ -233,7 +277,9 @@ class CameraManager(
 
         val nv21 =
             ByteArray(
-                ySize + uSize + vSize
+                ySize +
+                        uSize +
+                        vSize
             )
 
 
@@ -243,11 +289,13 @@ class CameraManager(
             ySize
         )
 
+
         vBuffer.get(
             nv21,
             ySize,
             vSize
         )
+
 
         uBuffer.get(
             nv21,
@@ -286,11 +334,9 @@ class CameraManager(
             outputStream.toByteArray()
 
 
-        /*
-         * Apply CameraX rotation so that
-         * the image data matches the
-         * camera orientation.
-         */
+        // =====================================================
+        // APPLY CAMERA ROTATION
+        // =====================================================
 
         val rotation =
             image.imageInfo.rotationDegrees
@@ -308,6 +354,7 @@ class CameraManager(
 
             val matrix =
                 Matrix().apply {
+
                     postRotate(
                         rotation.toFloat()
                     )
@@ -342,15 +389,21 @@ class CameraManager(
 
 
             bitmap.recycle()
+
             rotatedBitmap.recycle()
         }
 
 
         outputStream.close()
 
+
         return jpegBytes
     }
 
+
+    // =========================================================
+    // STOP CAMERA
+    // =========================================================
 
     fun stopCamera() {
 
@@ -361,15 +414,18 @@ class CameraManager(
 
         cameraProvider?.unbindAll()
 
+
         imageAnalysis?.clearAnalyzer()
 
+
         imageAnalysis = null
+
 
         isRunning = false
 
 
         println(
-            "CAMERA MANAGER >>> CAMERA STOPPED"
+            "CAMERA MANAGER >>> BACKGROUND CAMERA STOPPED"
         )
     }
 }
