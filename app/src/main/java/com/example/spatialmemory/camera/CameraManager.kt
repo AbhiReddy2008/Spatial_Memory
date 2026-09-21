@@ -16,6 +16,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.Executors
 
 class CameraManager(
     private val context: Context
@@ -32,6 +33,8 @@ class CameraManager(
     private var lastLogTime = 0L
 
     private var lastFrameSentTime = 0L
+    
+    private val analysisExecutor = Executors.newSingleThreadExecutor()
 
 
     fun startCamera(
@@ -72,11 +75,10 @@ class CameraManager(
 
 
             imageAnalysis?.setAnalyzer(
-                ContextCompat.getMainExecutor(context)
-            ) { image ->
-
-                processFrame(image)
-            }
+    analysisExecutor
+) { image ->
+    processFrame(image)
+}
 
 
             val cameraSelector =

@@ -36,9 +36,29 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
 import androidx.compose.runtime.LaunchedEffect
+import com.example.spatialmemory.camera.CameraInterface
 
 import com.example.spatialmemory.camera.CameraManager
 import com.example.spatialmemory.imu.IMUManager
+
+import com.example.spatialmemory.detection.ObjectDetector
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.text.font.FontWeight
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import android.graphics.Paint
+import android.graphics.RectF
+import com.example.spatialmemory.detection.Detection
+import com.example.spatialmemory.detection.DetectionOverlay
 
 
 class MainActivity : ComponentActivity() {
@@ -79,6 +99,8 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.CAMERA
             )
         }
+        
+        
     }
 }
 
@@ -243,15 +265,15 @@ fun ActiveSessionScreen(
 
     DisposableEffect(Unit) {
 
-        imuManager.startSensors()
+    CameraInterface.initialize(context)
 
-        onDispose {
+    imuManager.startSensors()
 
-            imuManager.stopSensors()
-
-            cameraManager.stopCamera()
-        }
+    onDispose {
+        imuManager.stopSensors()
+        cameraManager.stopCamera()
     }
+}
 
 
     Column(
@@ -401,7 +423,9 @@ fun ActiveSessionScreen(
                 }
             }
         }
+        
 
+        DetectionDebugPanel()
 
         /* ====================================================
            CONTROLS
@@ -534,12 +558,249 @@ fun CameraPreview(
     }
 
 
+    val detections by CameraInterface.detections.collectAsState()
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+
     AndroidView(
         factory = {
             previewView
         },
 
-        modifier =
-            Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize()
+    )
+
+    DetectionOverlay(
+        detections = detections,
+        modifier = Modifier.fillMaxSize()
     )
 }
+}
+
+
+
+@androidx.compose.runtime.Composable
+fun DetectionDebugPanel() {
+
+    val state by CameraInterface.debugState.collectAsState()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF171D24)
+        ),
+
+        shape = RoundedCornerShape(16.dp)
+    ) {
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+
+            Text(
+                text = "SPATIAL MEMORY — DEBUG",
+
+                color = Color.White,
+
+                fontSize = 17.sp,
+
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
+
+            DebugRow(
+                label = "Camera",
+                value = state.cameraStatus
+            )
+
+            DebugRow(
+                label = "YOLO26",
+                value = state.modelStatus
+            )
+
+            DebugRow(
+                label = "Inference",
+                value = state.inferenceStatus
+            )
+
+            DebugRow(
+                label = "Frames processed",
+                value = state.framesProcessed.toString()
+            )
+
+            DebugRow(
+                label = "Objects detected",
+                value = state.objectsDetected.toString()
+            )
+
+            DebugRow(
+                label = "Inference time",
+                value = "${state.inferenceTimeMs} ms"
+            )
+
+            Spacer(
+                modifier = Modifier.height(8.dp)
+            )
+
+            Text(
+                text = "Detected objects:",
+
+                color = Color.LightGray,
+
+                fontSize = 14.sp
+            )
+
+            Text(
+                text = if (state.detectedLabels.isEmpty()) {
+                    "No detections yet"
+                } else {
+                    state.detectedLabels.joinToString(", ")
+                },
+
+                color = Color.Green,
+
+                fontSize = 14.sp
+            )
+
+            if (state.errorMessage.isNotEmpty()) {
+
+                Spacer(
+                    modifier = Modifier.height(8.dp)
+                )
+
+                Text(
+                    text = "Error: ${state.errorMessage}",
+
+                    color = Color.Red,
+
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+
+@androidx.compose.runtime.Composable
+fun DebugRow(
+    label: String,
+    value: String
+) {
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+
+        Text(
+            text = label,
+
+            color = Color.LightGray,
+
+            fontSize = 13.sp
+        )
+
+        Text(
+            text = value,
+
+            color = Color.White,
+
+            fontSize = 13.sp
+        )
+    }
+}
+
+@androidx.compose.runtime.Composable
+fun DetectionOverlay(
+    detections: List<Detection>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+
+        val boxPaint = Paint().apply {
+            color = android.graphics.Color.GREEN
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isAntiAlias = true
+        }
+
+        val textPaint = Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 36f
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+
+        val backgroundPaint = Paint().apply {
+            color = android.graphics.Color.GREEN
+            style = Paint.Style.FILL
+        }
+
+        detections.forEach { detection ->
+
+            // Coordinates are normalized between 0 and 1.
+            val left = detection.left * size.width
+            val top = detection.top * size.height
+            val right = detection.right * size.width
+            val bottom = detection.bottom * size.height
+
+            drawRect(
+                color = Color.Green,
+                topLeft = Offset(left, top),
+                size = Size(
+                    width = right - left,
+                    height = bottom - top
+                ),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 3.dp.toPx()
+                )
+            )
+
+            drawIntoCanvas { canvas ->
+
+                val nativeCanvas = canvas.nativeCanvas
+
+                val label =
+                    "${detection.label} " +
+                    "${(detection.confidence * 100).toInt()}%"
+
+                val textWidth =
+                    textPaint.measureText(label)
+
+                val labelTop =
+                    (top - 42f).coerceAtLeast(0f)
+
+                nativeCanvas.drawRect(
+                    RectF(
+                        left,
+                        labelTop,
+                        left + textWidth + 16f,
+                        labelTop + 44f
+                    ),
+                    backgroundPaint
+                )
+
+                nativeCanvas.drawText(
+                    label,
+                    left + 8f,
+                    labelTop + 34f,
+                    textPaint
+                )
+            }
+        }
+    }
+}
+
