@@ -57,4 +57,5 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("com.google.ai.edge.litert:litert:1.4.1")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 }
