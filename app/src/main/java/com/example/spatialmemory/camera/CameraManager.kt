@@ -15,6 +15,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 
+import com.example.spatialmemory.detection.OCRReader
+
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 
@@ -38,9 +40,12 @@ class CameraManager(
     private val analysisExecutor =
         Executors.newSingleThreadExecutor()
 
+    private val ocrReader =
+        OCRReader()
+
 
     // =========================================================
-    // START CAMERA - BACKGROUND ANALYSIS ONLY
+    // START CAMERA
     // =========================================================
 
     fun startCamera(
@@ -51,17 +56,16 @@ class CameraManager(
             return
         }
 
-
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(context)
-
 
         cameraProviderFuture.addListener({
 
             val provider =
                 cameraProviderFuture.get()
 
-            cameraProvider = provider
+            cameraProvider =
+                provider
 
 
             // =================================================
@@ -96,36 +100,24 @@ class CameraManager(
 
                 provider.unbindAll()
 
-
-                /*
-                 * IMPORTANT:
-                 *
-                 * We bind ONLY ImageAnalysis.
-                 *
-                 * There is NO Preview use case.
-                 * Therefore the camera works in the background
-                 * without showing a camera preview on screen.
-                 */
-
                 provider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     imageAnalysis
                 )
 
-
                 isRunning = true
 
-
                 println(
-                    "CAMERA MANAGER >>> BACKGROUND CAMERA STARTED"
+                    "CAMERA MANAGER >>> " +
+                            "BACKGROUND CAMERA STARTED"
                 )
-
 
             } catch (e: Exception) {
 
                 println(
-                    "CAMERA MANAGER >>> ERROR: ${e.message}"
+                    "CAMERA MANAGER >>> " +
+                            "ERROR: ${e.message}"
                 )
             }
 
@@ -143,13 +135,12 @@ class CameraManager(
 
         frameCount++
 
-
         val currentTime =
             System.currentTimeMillis()
 
 
         // =====================================================
-        // CAMERA STATUS LOG
+        // CAMERA STATUS
         // =====================================================
 
         if (
@@ -158,7 +149,6 @@ class CameraManager(
 
             lastLogTime =
                 currentTime
-
 
             println(
                 "CAMERA >>> " +
@@ -169,76 +159,140 @@ class CameraManager(
 
 
         // =====================================================
-        // SEND APPROXIMATELY 5 FRAMES PER SECOND
+        // FRAME RATE
+        //
+        // 200 ms ≈ 5 FPS
         // =====================================================
 
         if (
-            currentTime - lastFrameSentTime >= 200
+            currentTime - lastFrameSentTime < 200
         ) {
 
-            lastFrameSentTime =
-                currentTime
+            image.close()
 
-
-            try {
-
-                // =================================================
-                // CONVERT YUV → JPEG
-                // =================================================
-
-                val jpegBytes =
-                    imageProxyToJpeg(image)
-
-
-                // =================================================
-                // CREATE CAMERA FRAME
-                // =================================================
-
-                val frame =
-                    CameraFrame(
-
-                        imageData =
-                            jpegBytes,
-
-                        timestamp =
-                            image.imageInfo.timestamp,
-
-                        width =
-                            image.width,
-
-                        height =
-                            image.height,
-
-                        rotationDegrees =
-                            image.imageInfo.rotationDegrees
-                    )
-
-
-                // =================================================
-                // SEND FRAME TO CAMERA INTERFACE
-                // =================================================
-
-                CameraInterface.onFrame(
-                    frame
-                )
-
-
-            } catch (e: Exception) {
-
-                println(
-                    "CAMERA >>> FRAME CONVERSION ERROR: " +
-                            e.message
-                )
-            }
+            return
         }
 
+        lastFrameSentTime =
+            currentTime
 
-        // =====================================================
-        // VERY IMPORTANT
-        // ImageProxy MUST always be closed
-        // =====================================================
 
-        image.close()
+        try {
+
+            // =================================================
+            // 1. CONVERT FRAME TO JPEG
+            // =================================================
+
+            val jpegBytes =
+                imageProxyToJpeg(image)
+
+
+            // =================================================
+            // 2. CREATE BITMAP COPY
+            // =================================================
+
+            val bitmap =
+                BitmapFactory.decodeByteArray(
+                    jpegBytes,
+                    0,
+                    jpegBytes.size
+                )
+
+
+            // =================================================
+            // 3. OCR
+            //
+            // OCR receives a Bitmap copy.
+            // Therefore ImageProxy can be closed safely.
+            // =================================================
+
+            if (bitmap != null) {
+
+                ocrReader.process(
+
+                    bitmap = bitmap,
+
+                    rotationDegrees = 0
+
+                ) { ocrResults ->
+
+                    println(
+                        "OCR >>> " +
+                                "detected ${ocrResults.size} " +
+                                "text blocks"
+                    )
+
+                    for (result in ocrResults) {
+
+                        println(
+                            "OCR >>> " +
+                                    "text='${result.text}' " +
+                                    "box=${result.boundingBox}"
+                        )
+                    }
+
+                    // Bitmap is no longer needed
+                    bitmap.recycle()
+                }
+
+            } else {
+
+                println(
+                    "OCR >>> " +
+                            "Could not create bitmap"
+                )
+            }
+
+
+            // =================================================
+            // 4. CREATE CAMERA FRAME
+            // =================================================
+
+            val frame =
+                CameraFrame(
+
+                    imageData =
+                        jpegBytes,
+
+                    timestamp =
+                        image.imageInfo.timestamp,
+
+                    width =
+                        image.width,
+
+                    height =
+                        image.height,
+
+                    rotationDegrees =
+                        image.imageInfo.rotationDegrees
+                )
+
+
+            // =================================================
+            // 5. EXISTING YOLO PIPELINE
+            // =================================================
+
+            CameraInterface.onFrame(
+                frame
+            )
+
+
+        } catch (e: Exception) {
+
+            println(
+                "CAMERA >>> " +
+                        "FRAME PROCESSING ERROR: " +
+                        e.message
+            )
+
+        } finally {
+
+            // =================================================
+            // 6. ALWAYS CLOSE IMAGEPROXY
+            // =================================================
+
+            image.close()
+        }
     }
 
 
@@ -250,14 +304,11 @@ class CameraManager(
         image: ImageProxy
     ): ByteArray {
 
-
         val yBuffer =
             image.planes[0].buffer
 
-
         val uBuffer =
             image.planes[1].buffer
-
 
         val vBuffer =
             image.planes[2].buffer
@@ -266,10 +317,8 @@ class CameraManager(
         val ySize =
             yBuffer.remaining()
 
-
         val uSize =
             uBuffer.remaining()
-
 
         val vSize =
             vBuffer.remaining()
@@ -289,13 +338,11 @@ class CameraManager(
             ySize
         )
 
-
         vBuffer.get(
             nv21,
             ySize,
             vSize
         )
-
 
         uBuffer.get(
             nv21,
@@ -335,7 +382,7 @@ class CameraManager(
 
 
         // =====================================================
-        // APPLY CAMERA ROTATION
+        // ROTATE IMAGE
         // =====================================================
 
         val rotation =
@@ -352,45 +399,48 @@ class CameraManager(
                 )
 
 
-            val matrix =
-                Matrix().apply {
+            if (bitmap != null) {
 
-                    postRotate(
-                        rotation.toFloat()
+                val matrix =
+                    Matrix().apply {
+
+                        postRotate(
+                            rotation.toFloat()
+                        )
+                    }
+
+
+                val rotatedBitmap =
+                    Bitmap.createBitmap(
+                        bitmap,
+                        0,
+                        0,
+                        bitmap.width,
+                        bitmap.height,
+                        matrix,
+                        true
                     )
-                }
 
 
-            val rotatedBitmap =
-                Bitmap.createBitmap(
-                    bitmap,
-                    0,
-                    0,
-                    bitmap.width,
-                    bitmap.height,
-                    matrix,
-                    true
+                val rotatedOutput =
+                    ByteArrayOutputStream()
+
+
+                rotatedBitmap.compress(
+                    Bitmap.CompressFormat.JPEG,
+                    85,
+                    rotatedOutput
                 )
 
 
-            val rotatedOutput =
-                ByteArrayOutputStream()
+                jpegBytes =
+                    rotatedOutput.toByteArray()
 
 
-            rotatedBitmap.compress(
-                Bitmap.CompressFormat.JPEG,
-                85,
-                rotatedOutput
-            )
+                bitmap.recycle()
 
-
-            jpegBytes =
-                rotatedOutput.toByteArray()
-
-
-            bitmap.recycle()
-
-            rotatedBitmap.recycle()
+                rotatedBitmap.recycle()
+            }
         }
 
 
@@ -414,18 +464,25 @@ class CameraManager(
 
         cameraProvider?.unbindAll()
 
-
         imageAnalysis?.clearAnalyzer()
 
-
         imageAnalysis = null
+
+
+        // Close OCR recognizer
+        ocrReader.close()
+
+
+        // Shutdown background executor
+        analysisExecutor.shutdown()
 
 
         isRunning = false
 
 
         println(
-            "CAMERA MANAGER >>> BACKGROUND CAMERA STOPPED"
+            "CAMERA MANAGER >>> " +
+                    "BACKGROUND CAMERA STOPPED"
         )
     }
 }
