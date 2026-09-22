@@ -173,7 +173,7 @@ class CameraManager(
         // =====================================================
 
         if (
-            currentTime - lastFrameSentTime >= 200
+            currentTime - lastFrameSentTime >= 500
         ) {
 
             lastFrameSentTime =
