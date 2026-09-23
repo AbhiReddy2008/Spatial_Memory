@@ -79,7 +79,6 @@ class CameraManager(
                     )
                     .build()
 
-
             imageAnalysis?.setAnalyzer(
                 analysisExecutor
             ) { image ->
@@ -94,7 +93,6 @@ class CameraManager(
 
             val cameraSelector =
                 CameraSelector.DEFAULT_BACK_CAMERA
-
 
             try {
 
@@ -161,11 +159,21 @@ class CameraManager(
         // =====================================================
         // FRAME RATE
         //
+<<<<<<< HEAD
         // 200 ms ≈ 5 FPS
         // =====================================================
 
         if (
             currentTime - lastFrameSentTime < 200
+=======
+        // 500 ms ≈ 2 FPS
+        //
+        // We intentionally keep this low while verifying OCR.
+        // =====================================================
+
+        if (
+            currentTime - lastFrameSentTime < 500
+>>>>>>> chavi
         ) {
 
             image.close()
@@ -180,7 +188,11 @@ class CameraManager(
         try {
 
             // =================================================
+<<<<<<< HEAD
             // 1. CONVERT FRAME TO JPEG
+=======
+            // 1. CONVERT CAMERA FRAME TO JPEG
+>>>>>>> chavi
             // =================================================
 
             val jpegBytes =
@@ -189,6 +201,12 @@ class CameraManager(
 
             // =================================================
             // 2. CREATE BITMAP COPY
+<<<<<<< HEAD
+=======
+            //
+            // OCR works on this Bitmap.
+            // It does NOT directly use ImageProxy.
+>>>>>>> chavi
             // =================================================
 
             val bitmap =
@@ -202,8 +220,13 @@ class CameraManager(
             // =================================================
             // 3. OCR
             //
+<<<<<<< HEAD
             // OCR receives a Bitmap copy.
             // Therefore ImageProxy can be closed safely.
+=======
+            // imageProxyToJpeg() already rotates the image.
+            // Therefore OCR rotation is 0.
+>>>>>>> chavi
             // =================================================
 
             if (bitmap != null) {
@@ -231,7 +254,15 @@ class CameraManager(
                         )
                     }
 
+<<<<<<< HEAD
                     // Bitmap is no longer needed
+=======
+
+                    // =================================================
+                    // Bitmap is no longer needed after ML Kit finishes.
+                    // =================================================
+
+>>>>>>> chavi
                     bitmap.recycle()
                 }
 
@@ -246,6 +277,11 @@ class CameraManager(
 
             // =================================================
             // 4. CREATE CAMERA FRAME
+<<<<<<< HEAD
+=======
+            //
+            // Existing pipeline continues to receive the frame.
+>>>>>>> chavi
             // =================================================
 
             val frame =
@@ -269,7 +305,11 @@ class CameraManager(
 
 
             // =================================================
+<<<<<<< HEAD
             // 5. EXISTING YOLO PIPELINE
+=======
+            // 5. SEND TO EXISTING PIPELINE
+>>>>>>> chavi
             // =================================================
 
             CameraInterface.onFrame(
@@ -288,7 +328,13 @@ class CameraManager(
         } finally {
 
             // =================================================
+<<<<<<< HEAD
             // 6. ALWAYS CLOSE IMAGEPROXY
+=======
+            // 6. CLOSE CAMERA IMAGE
+            //
+            // Safe because OCR is processing the separate Bitmap.
+>>>>>>> chavi
             // =================================================
 
             image.close()
@@ -468,6 +514,7 @@ class CameraManager(
 
         imageAnalysis = null
 
+<<<<<<< HEAD
 
         // Close OCR recognizer
         ocrReader.close()
@@ -477,6 +524,8 @@ class CameraManager(
         analysisExecutor.shutdown()
 
 
+=======
+>>>>>>> chavi
         isRunning = false
 
 
