@@ -164,6 +164,7 @@ class CameraManager(
         // =====================================================
 
         if (
+<<<<<<< HEAD
             currentTime - lastFrameSentTime < 200
 =======
         // 500 ms ≈ 2 FPS
@@ -174,6 +175,9 @@ class CameraManager(
         if (
             currentTime - lastFrameSentTime < 500
 >>>>>>> chavi
+=======
+            currentTime - lastFrameSentTime >= 500
+>>>>>>> b6c402c708670b79c56057110760e27450e2af4a
         ) {
 
             image.close()

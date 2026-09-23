@@ -1,0 +1,66 @@
+{
+  "allFiles": [
+    {
+      "file": "/storage/emulated/0/CodeOnTheGoProjects/Spatial_Memory/app/src/main/java/com/example/spatialmemory/ObjectDetector.kt",
+      "selection": {
+        "end": {
+          "column": 21,
+          "index": 397,
+          "line": 14
+        },
+        "start": {
+          "column": 21,
+          "index": 397,
+          "line": 14
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/CodeOnTheGoProjects/Spatial_Memory/app/src/main/java/com/example/spatialmemory/OCRReader.kt",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        },
+        "start": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/CodeOnTheGoProjects/Spatial_Memory/app/build.gradle.kts",
+      "selection": {
+        "end": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        },
+        "start": {
+          "column": 0,
+          "index": 0,
+          "line": 0
+        }
+      }
+    },
+    {
+      "file": "/storage/emulated/0/CodeOnTheGoProjects/Spatial_Memory/app/src/main/java/com/example/spatialmemory/camera/CameraManager.kt",
+      "selection": {
+        "end": {
+          "column": 1,
+          "index": 11383,
+          "line": 489
+        },
+        "start": {
+          "column": 1,
+          "index": 11383,
+          "line": 489
+        }
+      }
+    }
+  ],
+  "projectPath": "/storage/emulated/0/CodeOnTheGoProjects/Spatial_Memory",
+  "selectedFile": "/storage/emulated/0/CodeOnTheGoProjects/Spatial_Memory/app/src/main/java/com/example/spatialmemory/camera/CameraManager.kt"
+}
